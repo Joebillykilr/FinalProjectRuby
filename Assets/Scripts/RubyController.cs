@@ -25,6 +25,9 @@ public class RubyController : MonoBehaviour
     public AudioClip throwSound;
     public AudioClip hitSound;
 
+    public AudioClip talkSound;
+    public AudioClip speedSound;
+
     public ParticleSystem damageEffect;
     public ParticleSystem healEffect;
 
@@ -40,9 +43,23 @@ public class RubyController : MonoBehaviour
 
     Animator animator;
     Vector2 lookDirection = new Vector2(1,0);
-    AudioSource audioSource;
-    
-    
+    public AudioSource audioSource;
+
+    public AudioClip musicClipOne;
+    public AudioClip musicClipTwo;
+    public AudioClip mainMusic;
+
+    public int cogs;
+    public Text CogsText;
+
+    public int skull;
+    public Text SkullText;
+
+    private bool HasAmmo = true;
+
+    //public bool isStage2 = false;
+    //public bool gotoStage2;
+
 
     // Start is called before the first frame update
     void Start()
@@ -51,10 +68,16 @@ public class RubyController : MonoBehaviour
         currentHealth = maxHealth;
         rigidbody2d = GetComponent<Rigidbody2D>();
         score = 0;
+        skull = 0;
+        cogs = 4;
         SetScoreText ();
         winText.text = "";
-        audioSource= GetComponent<AudioSource>();
+        audioSource = GetComponent<AudioSource>();
         player = GameObject.FindWithTag("RubyController");
+        audioSource.clip = mainMusic;
+        audioSource.Play();
+        SetCogsText ();
+        SetSkullText ();
     }
 
     // Update is called once per frame
@@ -82,14 +105,30 @@ public class RubyController : MonoBehaviour
                 isInvincible = false;
         }
 
-        if(Input.GetKeyDown(KeyCode.C))
+        if(Input.GetKeyDown(KeyCode.C) && HasAmmo)
         {
+            cogs = cogs - 1;
             Launch();
+            SetCogsText();
         }
+
+        //if (health == 0)
+        //{
+            //audioSource.clip = musicClipTwo;
+            //audioSource.Play();
+        //}
 
         if(health == 0)
         {
             winText.text = "You lost! Press R to restart";
+            //audioSource.clip = musicClipTwo;
+            //audioSource.Play();
+            Time.timeScale = 0;
+
+            if (Input.GetKey(KeyCode.R))
+            {
+                gameOver = true;
+            }
         }
 
         if (Input.GetKey("escape"))
@@ -97,39 +136,48 @@ public class RubyController : MonoBehaviour
             Application.Quit();
         }
 
-        if (Input.GetKey(KeyCode.R))
+        if (score == 4)
         {
-
-            if (gameOver == true)
+            if (Input.GetKey(KeyCode.R))
             {
-
-              SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); // this loads the currently active scene
-
+                gameOver = true;
             }
-
         }
-    
     
         if (Input.GetKeyDown(KeyCode.X))
         {
         RaycastHit2D hit = Physics2D.Raycast(rigidbody2d.position + Vector2.up * 0.2f, lookDirection, 1.5f, LayerMask.GetMask("NPC"));
            if (hit.collider != null)
             {
+                Scene scene = SceneManager.GetActiveScene();
+                if (scene.name == "MainScene" && score == 4)
+                {
+                    SceneManager.LoadScene("MainScene 1");
+                }
                 NonPlayerCharacter character = hit.collider.GetComponent<NonPlayerCharacter>();
                 if (character != null)
                 {
                     character.DisplayDialog();
+                    PlaySound(talkSound);
                 }
             }
         }
+
+        if (gameOver == true)
+        {
+
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); // this loads the currently active scene
+            Time.timeScale = 1;
+        }
+        
     }
 
 
     void FixedUpdate()
     {
         Vector2 position = rigidbody2d.position;
-        position.x = position.x + 3.0f * horizontal * Time.deltaTime;
-        position.y = position.y + 3.0f * vertical * Time.deltaTime;
+        position.x = position.x + speed * horizontal * Time.deltaTime;
+        position.y = position.y + speed * vertical * Time.deltaTime;
 
         rigidbody2d.MovePosition(position);
     }
@@ -154,6 +202,12 @@ public class RubyController : MonoBehaviour
 
         currentHealth = Mathf.Clamp(currentHealth + amount, 0, maxHealth);
         UIHealthBar.instance.SetValue(currentHealth / (float)maxHealth);
+
+        if (currentHealth == 0)
+        {
+            audioSource.clip = musicClipTwo;
+            audioSource.Play();
+        }
     }
 
     public void ChangeScore(int scoreAmount)
@@ -165,10 +219,42 @@ public class RubyController : MonoBehaviour
     void SetScoreText ()
     {
         scoreText.text = "Robots Fixed: " + score.ToString ();
-        if (score == 4) 
+        Scene scene = SceneManager.GetActiveScene();
+        if (scene.name == "MainScene 1")
         {
-            winText.text = "You Win! Game created by Alexander Shopovick";
+            if (score == 4 && skull == 1)
+            {
+                winText.text = "You Win! Game created by Alexander Shopovick, Press R to restart";
+                audioSource.clip = musicClipOne;
+                audioSource.Play();
+                Time.timeScale = 0;
+        
+                //if (Input.GetKey(KeyCode.R))
+                //{
+                //    gameOver = true;
+                //}
+
+            }
         }
+    }
+
+    void SetCogsText ()
+    {
+        CogsText.text = "Cogs: " + cogs.ToString ();
+        if (cogs <= 0)
+        {
+            HasAmmo = false;
+        }
+        else
+        {
+            HasAmmo = true;
+        }
+    }
+
+    void SetSkullText ()
+    {
+        SkullText.text = "Skull: " + skull.ToString ();
+        SetScoreText ();
     }
 
     void Launch()
@@ -188,4 +274,29 @@ public class RubyController : MonoBehaviour
         audioSource.PlayOneShot(clip);
     }
 
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.collider.tag == ("Cog"))
+        {
+            {
+                cogs = cogs + 3;
+                Destroy(collision.collider.gameObject);
+                SetCogsText ();
+            }
+        }
+
+        if (collision.collider.tag == ("Skull"))
+        {
+            skull = skull + 1;
+            Destroy(collision.collider.gameObject);
+            SetSkullText ();
+        }
+
+        if (collision.collider.tag == ("Speed"))
+        {
+            speed = 4;
+            Destroy(collision.collider.gameObject);
+            PlaySound(speedSound);
+        }
+    }
 }
